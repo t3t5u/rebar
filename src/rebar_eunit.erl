@@ -140,7 +140,25 @@ info_help(Description) ->
         {cover_export_enabled, false}
        ]).
 
+to_atom(From) when is_list(From) -> list_to_atom(From);
+to_atom(From) when is_binary(From) -> binary_to_atom(From, utf8).
+
+get_global_as_apps(Config, Key, Default) ->
+    case rebar_config:get_global(Config, Key, "") of
+        "" -> Default;
+        Ss -> [list_to_atom(S) || S <- string:tokens(Ss, ",")]
+    end.
+
 run_eunit(Config, CodePath, SrcErls) ->
+    App = to_atom(filename:basename(rebar_utils:get_cwd())),
+    Exclude = lists:member(App, get_global_as_apps(Config, exclude_apps, [])),
+    Include = lists:member(App, get_global_as_apps(Config, include_apps, [App])),
+    case not Exclude andalso Include of
+        true  -> run_eunit1(Config, CodePath, SrcErls);
+        false -> ?CONSOLE("    ~w (eunit) skipped.~n", [App]), ok
+    end.
+
+run_eunit1(Config, CodePath, SrcErls) ->
     %% Build a list of all the .beams in ?EUNIT_DIR -- use this for
     %% cover and eunit testing. Normally you can just tell cover
     %% and/or eunit to scan the directory for you, but eunit does a
